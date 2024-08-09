@@ -20,8 +20,8 @@
 from taskflow.patterns import linear_flow
 
 from octavia.common import constants
-from fadc_octavia_provider.fortiadc_agent.tasks import fadc_database_tasks
-from fadc_octavia_provider.fortiadc_agent.tasks import fadc_lifecycle_tasks
+from octavia.controller.worker.v2.tasks import database_tasks as fadc_database_tasks
+from octavia.controller.worker.v2.tasks import lifecycle_tasks as fadc_lifecycle_tasks
 from fadc_octavia_provider.fortiadc_agent.tasks import fortiadc_driver_tasks
 
 

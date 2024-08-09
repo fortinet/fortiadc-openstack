@@ -41,34 +41,17 @@ from octavia.network.drivers.neutron import utils
 CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
-class FadcNetworkDriver():
+class FadcNetworkManager():
     def __init__(self):
-        self.network_proxy: Proxy = clients.NeutronAuth.get_neutron_client().network
-
-    def _get_resource(self, resource_type, resource_id, context=None):
-        network = self.network_proxy
-        if context and not CONF.networking.allow_invisible_resource_usage:
-            network = clients.NeutronAuth.get_user_neutron_client(
-                context)
-
-        try:
-            resource = getattr(
-                network, f"get_{resource_type}")(resource_id)
-            return getattr(utils, 'convert_%s_to_model' %
-                           resource_type)(resource)
-        except os_exceptions.ResourceNotFound as e:
-            message = _('{resource_type} not found '
-                        '({resource_type} id: {resource_id}).').format(
-                resource_type=resource_type, resource_id=resource_id)
-            raise getattr(base, '%sNotFound' % ''.join(
-                [w.capitalize() for w in resource_type.split('_')]
-            ))(message) from e
-        except Exception as e:
-            message = _('Error retrieving {resource_type} '
-                        '({resource_type} id: {resource_id}.').format(
-                resource_type=resource_type, resource_id=resource_id)
-            LOG.exception(message)
-            raise base.NetworkException(message) from e
+        LOG.debug('FadcNetworkManager init')
+        self.neutron_client = clients.NeutronAuth.get_neutron_client(
+            #endpoint=CONF.neutron.endpoint,
+            #region=CONF.neutron.region_name,
+            #endpoint_type=CONF.neutron.endpoint_type,
+            #service_name=CONF.neutron.service_name,
+            #insecure=CONF.neutron.insecure,
+            #ca_cert=CONF.neutron.ca_certificates_file
+        )
 
     def plug_vip_to_port(self, vip, port_id):
         try:
@@ -90,8 +73,8 @@ class FadcNetworkDriver():
 
     def _add_vip_to_port(self, vip, port_id):
         LOG.debug('add_vip_to_port %s %s', vip, port_id)
-        port_obj = self.network_proxy.get_port(port_id)
-        ip_list = port_obj.allowed_address_pairs
+        port_obj = self.neutron_client.show_port(port_id)
+        ip_list = port_obj['port']['allowed_address_pairs']
         if isinstance(vip, list):
             for ip in vip:
                 if self._no_exist(ip, ip_list):
@@ -101,18 +84,13 @@ class FadcNetworkDriver():
                 ip_list.append({'ip_address': vip})
             else:
                 return
-        print('add_vip_to_port is {}'.format(ip_list))
+        print(ip_list)
         aap_info = {
-            'allowed_address_pairs': ip_list
+            'port': {
+                'allowed_address_pairs': ip_list
+            }
         }
-        try:
-            self.network_proxy.update_port(port_id, **aap_info)
-        except Exception as e:
-            message = _('Error unplugging VIP. Could not clear '
-                        'allowed address pairs from port '
-                        '{port_id}.').format(port_id=vip.port_id)
-            LOG.exception(message)
-            raise base.UnplugVIPException(message) from e
+        self.neutron_client.update_port(port_id, aap_info)
 
     def unplug_vip_from_port(self, vip, port_id):
         try:
@@ -128,13 +106,15 @@ class FadcNetworkDriver():
         
     def _remove_vip_from_port(self, vip, port_id):
         LOG.debug('remove_vip_from_port %s %s', vip, port_id)
-        port_obj = self.network_proxy.get_port(port_id)
-        ip_list = port_obj.allowed_address_pairs
+        port_obj = self.neutron_client.show_port(port_id)
+        ip_list = port_obj['port']['allowed_address_pairs']
         for ip in reversed(ip_list):
             if ip['ip_address'] == vip:
                 ip_list.remove(ip)
-        print('remove_vip_from_port is {}'.format(ip_list))
+        print(ip_list)
         aap_info = {
-            'allowed_address_pairs': ip_list
+            'port': {
+                'allowed_address_pairs': ip_list
+            }
         }
-        self.network_proxy.update_port(port_id, **aap_info)
+        self.neutron_client.update_port(port_id, aap_info)

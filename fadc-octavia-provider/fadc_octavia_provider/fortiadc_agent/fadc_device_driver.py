@@ -64,7 +64,7 @@ class FadcdeviceDriver(object):
         self.connector = Connector(self.host, self.o_device.certificate_verify, self.o_device.ca_file)
         try:
             self.connector.login(self.o_device.fadc_username, self.o_device.fadc_password)
-            self.connector.check_version()
+            #self.connector.check_version()
         except Exception as e:
             LOG.error('login %s failed. reason %s\n' %(self.host, e))
     def refresh(self):

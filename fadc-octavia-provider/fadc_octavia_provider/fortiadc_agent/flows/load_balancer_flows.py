@@ -28,9 +28,10 @@ from octavia.common import utils
 from fadc_octavia_provider.fortiadc_agent.flows import listener_flows
 from fadc_octavia_provider.fortiadc_agent.flows import member_flows
 from fadc_octavia_provider.fortiadc_agent.flows import pool_flows
-from fadc_octavia_provider.fortiadc_agent.tasks import fadc_database_tasks
-from fadc_octavia_provider.fortiadc_agent.tasks import fadc_lifecycle_tasks
+from octavia.controller.worker.v2.tasks import database_tasks as fadc_database_tasks
+from octavia.controller.worker.v2.tasks import lifecycle_tasks as fadc_lifecycle_tasks
 from fadc_octavia_provider.fortiadc_agent.tasks import fortiadc_driver_tasks
+from octavia.controller.worker.v2.tasks import notification_tasks
 from octavia.db import repositories as repo
 
 CONF = cfg.CONF
@@ -74,6 +75,14 @@ class LoadBalancerFlows(object):
                 requires=constants.LOADBALANCER
             )
         )
+
+        if CONF.controller_worker.event_notifications:
+            LOG.info('create event_notifications')
+            lb_create_flow.add(
+                notification_tasks.SendCreateNotification(
+                    requires=constants.LOADBALANCER
+                )
+            )
 
         LOG.info('get_create_load_balancer_flow end')
 
@@ -161,6 +170,9 @@ class LoadBalancerFlows(object):
             requires=constants.LOADBALANCER))
         delete_LB_flow.add(fadc_database_tasks.DecrementLoadBalancerQuota(
             requires=constants.PROJECT_ID))
+        if CONF.controller_worker.event_notifications:
+            delete_LB_flow.add(notification_tasks.SendDeleteNotification(
+                requires=constants.LOADBALANCER))
         return delete_LB_flow
 
     def get_cascade_delete_load_balancer_flow(self, lb, listeners, pools):
@@ -185,5 +197,11 @@ class LoadBalancerFlows(object):
             requires=[constants.LOADBALANCER, constants.UPDATE_DICT]))
         update_LB_flow.add(fadc_database_tasks.MarkLBActiveInDB(
             requires=constants.LOADBALANCER))
+        if CONF.controller_worker.event_notifications:
+            update_LB_flow.add(
+                notification_tasks.SendUpdateNotification(
+                    requires=constants.LOADBALANCER
+                )
+            )
 
         return update_LB_flow
