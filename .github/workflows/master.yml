@@ -1,0 +1,25 @@
+name: fortiadc-openstack
+on:
+  push:
+    tags:
+      - '*'
+jobs:
+  build:
+    name: build-openstack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: create-dist
+        run: |
+          mkdir dist
+          zip -r ./dist/fadc-octavia-provider.zip ./fadc-octavia-provider/*
+          zip -r ./dist/fortiadc_lbaasv2.zip ./fortiadc_lbaasv2/*
+      - name: upload-openstack
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{secrets.GITHUB_TOKEN}}
+          file: ./dist/*
+          tag: ${{github.ref}}
+          overwrite: true
+          file_glob: true
+          body: "FortiADC Openstack Release"
